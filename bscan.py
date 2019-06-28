@@ -1,4 +1,6 @@
 
+# Jacqueline Lewis
+# bscan.py
 
 # for use on raspi
 # - enable bluetooth
@@ -43,8 +45,8 @@ def hexify(txt):
     return dec
 
 def toPressure(dec): #return dec
-    slope = 0.000147513
-    yint = 0.545090
+    slope = 0.000146885
+    yint = 0.626175
     return round(dec*slope+yint,1)
 
 def toTemp(dec): #return dec
@@ -63,22 +65,14 @@ while(True):
     try:
         devices = scanner.scan(2.0)
         ManuData = ""
-        # wait = time.time()
         for dev in devices:
             entry = 0
             for saddr in SENSOR_ADDRESS:
                 entry += 1
                 if (dev.addr == saddr):
                     for (adtype, desc, value) in dev.getScanData():
-                        # print "  %s = %s" % (desc, value)
-                        if (desc == "Manufacturer"):
-                            ManuData = value
-
-                    if (ManuData == ""):
-                        print "No data received, end decoding"
-                        continue
-
-                    # print ManuData[16:]
+                        if (desc == "Manufacturer"): ManuData = value
+                    if (ManuData == ""): continue
                     pressure = toPressure(hexify(ManuData[16:24]))
                     temp = toTemp(hexify(ManuData[24:32]))
                     tim = round(time.time()-start,1)
@@ -88,13 +82,12 @@ while(True):
                     print(time.strftime("%H:%M:%S"))
                     print("Pressure data: %s" % (str(pressure)))
                     print("Temperature data: %s" % (str(temp)))
-        # print(time.time()-wait)
-        
+
     except KeyboardInterrupt:
         writeFile("test.txt",contents)
         print("written")
         break
-    # except: continue
+    # except:
     #     os.popen("sudo hciconfig hci0 reset")
-        # os.popen("sudo /etc/init.d/bluetooth restart")
+        
 
