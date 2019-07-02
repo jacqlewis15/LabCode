@@ -6,6 +6,9 @@
 # - enable bluetooth
 #   - sudo apt-get install python-pip libglib2.0-dev 
 #   - sudo pip install bluepy
+# - tkinter
+#   - sudo apt-get install python-tk
+#   - sudo pip install tkcolorpicker
 # - must modify btle.py 
 #   - /usr/local/lib/python2.7/dist-packages/bluepy/btle.py
 #   - add line "time.sleep(0.1)" after line 294 in doc
@@ -300,22 +303,25 @@ def buttonIcon(idx,data):
                 self.updateTextFill("black")
                 self.updateText(data,"Start")
                 stop(data)
-            else:
+            elif data.editing == None:
                 self.updateTextFill("red")
                 self.updateText(data,"Stop")
                 start(data)
         return f
     elif idx == 3:
-        def f(self,data):
-            if data.running: return
-            self.updateTextFill("red")
-            data.basing = self
+        def f(self,data): pass
+            # fix save!!!
+            # make baseline code a button
+            #   starts run, can select baseline
+            #   don't need to keep points before baseline
         return f
 
 def start(data): 
-    data.running = True
-    data.startTime = time.time()
-    data.lastTime = time.time()
+    # data.running = True
+    initTest(data)
+    data.basing = True
+    data.stableSince = time.time()
+    data.error = "Establishing baseline"
 
 def stop(data): 
     data.running = False
@@ -344,8 +350,8 @@ def initLegendIcons(data):
     vTop = 2*data.margin
     vBot = data.height*3/4
     bheight = (vBot-vTop-15*(data.margin/2))/16
-    left = data.width-1.5*data.margin
-    right = data.width-0.5*data.margin
+    left = data.width-4.5*data.margin
+    right = data.width-3.5*data.margin
     for i in range(16):
         top = vTop+(data.margin/2+bheight)*i
         coords = left,top,right,top+bheight
@@ -362,7 +368,7 @@ def initButtonIcons(data):
 
     top = data.height*3/4+bheight*15/5
     bot = top+bheight 
-    for i in range(4):
+    for i in range(3):
         left = data.width/6+bwidth*(i*12+1)/5
         right = left+bwidth*11/5
         coords = left,top,right,bot
@@ -371,14 +377,14 @@ def initButtonIcons(data):
         if i == 0: 
             text = "Filename: " + data.fileName
         elif i == 1: 
-            text = "Time between points (minutes): " + data.spacing
+            text = "Time between points (minutes): " + str(data.spacing)
         elif i == 2: 
             text = "Start" if not data.running else "Stop"
             tFill = "red" if data.running else "black"
             font,anchor = "Arial 15 bold","center"
             left = left+(right-left)/2-5
         elif i == 3:
-            text = "Get baseline"
+            text = "Set baseline"
             anchor = "center"
             left = left+(right-left)/2-5
             font = "Arial 15 bold"
@@ -400,6 +406,22 @@ def color(val):
 def emptyList():
     return [[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]]
 
+def initTest(data):
+    data.baseline = [0]*16
+    data.basetemp = [0]*16
+    data.midPoints = emptyList()
+    data.midTemps = emptyList()
+    data.rawGraph = emptyGraph(data,(2*data.margin,data.margin,
+        data.width/2-3*data.margin,data.height*3/4-data.margin),"Raw Data")
+    data.normGraph = emptyGraph(data,(data.width/2-2*data.margin,
+        data.margin,data.width-7*data.margin,data.height*3/4-data.margin),
+            "Normalized Data")
+    data.pressures = [""] * 16
+    data.highPoint = 0
+    data.startTime = time.time()
+    data.lastTime = time.time()
+    data.lastSave = time.time()
+
 def init(data):
     data.scanner = Scanner().withDelegate(ScanDelegate())
     data.sAddr = ["80:ea:ca:10:02:dd", "81:ea:ca:20:00:b3",
@@ -409,34 +431,28 @@ def init(data):
                   "#030100","#131178","#E23D95","#5ECA92",
                   "#FF9203","white","white","white",
                   "white","white","white","white"]
-    data.margin = 20
-    data.sVal = [0]*16
+    data.margin = data.width/80
     data.label = [""]*16
-    data.baseline = [0]*16
-    data.midPoints = emptyList()
-    data.rawGraph = emptyGraph(data,(2*data.margin,data.margin,
-        data.width/2-3*data.margin,data.height*3/4-data.margin),"Raw Data")
-    data.normGraph = emptyGraph(data,(data.width/2,
-        data.margin,data.width-5*data.margin,data.height*3/4-data.margin),
-            "Normalized Data")
-
+    data.label[0] = "one"
+    data.label[1] = "two"
+    data.label[2] = "three"
+    data.label[3] = "four"
+    
+    initTest(data)
 
     data.fileName = "test.txt"
     data.newData = ""
-    data.spacing = "3"
+    data.spacing = 3
     data.filler = "None"
-    data.highPoint = 0
 
     data.editing = None
     data.time = 0
     data.pipe = False
     data.editText = ""
-    data.basing = None
+    data.error = ""
 
+    data.basing = False
     data.running = False
-    data.startTime = time.time()
-    data.lastTime = time.time()
-    data.lastSave = time.time()
 
     data.scanner = Scanner().withDelegate(ScanDelegate())
     initIcons(data)
@@ -512,8 +528,9 @@ def runScan(data):
                         if (desc == "Manufacturer"): ManuData = value
                     if (ManuData == ""): continue
                     pressure = toPressure(hexify(ManuData[16:24]))
-                    # temp = toTemp(hexify(ManuData[24:32]))
+                    temp = toTemp(hexify(ManuData[24:32]))
                     data.midPoints[entry].append(pressure)
+                    data.midTemps[entry].append(temp)
                 entry += 1
     except: os.popen("sudo hciconfig hci0 reset")
 
@@ -527,38 +544,41 @@ def average(lst):
 def averagePoints(data):
     for i in range(len(data.midPoints)):
         avg = average(data.midPoints[i])
+        temp = average(data.midTemps[i])
         if i == 0: data.newData += "\n" + str(
             round(data.lastTime-data.startTime,2))
         if data.label[i] != "": 
             if avg == None:
-                data.newData += "," + data.filler 
+                data.newData += "," + data.filler + "," + data.filler
             else:
                 if avg > data.highPoint: data.highPoint = avg
                 data.rawGraph.addPoint((data.lastTime-data.startTime,avg),i)
                 norm = avg - data.baseline[i]
                 data.normGraph.addPoint((data.lastTime-data.startTime,norm),i)
-                data.newData += "," + str(avg)
+                data.newData += "," + str(avg) + "," + str(temp)
+                data.pressures[i] = avg
         else: continue
     data.midPoints = emptyList()
 
 def scaleGraphs(data):
-    if (data.lastTime + data.spacing * 60 - data.startTime 
+    if (data.lastTime - data.startTime 
         > data.rawGraph.xlim[1]):
+        newX = data.lastTime - data.startTime
         if data.highPoint > data.rawGraph.ylim[1]:
-            data.rawGraph.updateLimits((0,int(data.rawGraph.xlim[1]*1.5)),
-                (0,int(data.rawGraph.ylim[1]*1.5)))
-            data.normGraph.updateLimits((0,int(data.rawnormGraph.xlim[1]*1.5)),
-                (0,int(data.normGraph.ylim[1]*1.5)))
+            data.rawGraph.updateLimits((0,int(newX*1.5)),
+                (0,int(data.highPoint*1.5)))
+            data.normGraph.updateLimits((0,int(newX*1.5)),
+                (0,int(data.highPoint*1.5)))
         else:
-            data.rawGraph.updateLimits((0,int(data.rawGraph.xlim[1]*1.5)),
+            data.rawGraph.updateLimits((0,int(newX*1.5)),
                 data.rawGraph.ylim)
-            data.normGraph.updateLimits((0,int(data.normGraph.xlim[1]*1.5)),
+            data.normGraph.updateLimits((0,int(newX*1.5)),
                 data.normGraph.ylim)
     elif data.highPoint > data.rawGraph.ylim[1]:
             data.rawGraph.updateLimits(data.rawGraph.xlim,
-                (0,int(data.rawGraph.ylim[1]*1.5)))
+                (0,int(data.highPoint*1.5)))
             data.normGraph.updateLimits(data.normGraph.xlim,
-                (0,int(data.normGraph.ylim[1]*1.5)))
+                (0,int(data.highPoint*1.5)))
 
 def save(data):
     try: contents = readFile(data.fileName)
@@ -566,7 +586,7 @@ def save(data):
         contents = "Time"
         for i in range(len(data.midPoints)):
             if data.label[i] == "": continue
-            contents += "," + data.label[i]
+            contents += "," + data.label[i] + ",Temp"
     contents += data.newData
     contents = contents.strip()
     writeFile(data.fileName, contents)
@@ -586,7 +606,8 @@ def process(data):
         points.append(line.split(","))
     
     for j in range(1,len(points[0])):
-        LB = 0,data.baseline[j]
+        if j % 2 == 1: LB = 0,data.baseline[j/2]
+        else: LB = 0,data.basetemp[(j-1)/2]
         UB = None
         for i in range(1,len(points)):
             if points[i][j] == data.filler: 
@@ -611,6 +632,7 @@ def process(data):
         points[i] = (",").join(points[i])
     contents = ("\n").join(points)
     writeFile(data.fileName,contents)
+    print(data.baseline,data.basetemp)
 
 def timerFired(data):
     if data.running: runScan(data)
@@ -625,21 +647,39 @@ def timerFired(data):
     if data.editing != None and data.time % 5 == 0:
         data.pipe = not data.pipe
         data.editing.updateText(data,piping(data,data.editing.text))
-    if data.basing != None:
-        start = time.time()
-        print("yes")
-        while(time.time() - start < 60):
-            runScan(data)
-        print(data.midPoints)
+    if data.basing:
+        runScan(data)
+        enoughPoints = True
         for i in range(len(data.midPoints)):
-            avg = average(data.midPoints[i])
-            if avg != None: data.baseline[i] = avg
-        print(data.baseline)
-        data.midPoints = emptyList()
-        data.basing.updateTextFill("black")
-        data.basing = None
-        print("done")
+            if len(data.midPoints[i]) > 0: 
+                data.pressures[i] = data.midPoints[i][-1]
+            if len(data.midPoints[i]) > 1:
+                if data.midPoints[i][-2] != data.midPoints[i][-1]:
+                    data.stableSince = time.time()
+            elif data.label[i] != "": enoughPoints = False
+        if time.time() - data.stableSince > 60 and enoughPoints:
+            data.basing = False
+            for i in range(len(data.midPoints)):
+                if data.label[i] != "": 
+                    data.baseline[i] = data.midPoints[i][-1]
+                    data.basetemp[i] = data.midTemps[i][-1]
+            data.running = True
+            data.midPoints = emptyList()
+            data.midTemps = emptyList()
+            data.error = ""
+
     data.time += 1
+
+def drawPressures(canvas,data):
+    vTop = 2*data.margin
+    vBot = data.height*3/4
+    bheight = (vBot-vTop-15*(data.margin/2))/16
+    left = data.width-3*data.margin
+    for i in range(16):
+        top = vTop+(data.margin/2+bheight)*i+bheight/2
+        text = "" if (data.label[i] == "") else str(data.pressures[i])
+        canvas.create_text(left,top,text=text,
+            anchor="w",font="Arial 10 bold",fill="black")
 
 def redrawAll(canvas, data):
     canvas.create_rectangle(-5,-5,data.width+5,data.height+5,fill="gray72")
@@ -647,6 +687,10 @@ def redrawAll(canvas, data):
     data.normGraph.drawGraph(canvas,data)
     for icon in data.icons:
         icon.drawIcon(canvas)
+    drawPressures(canvas,data)
+    canvas.create_text(data.width/2-0.5*data.margin,
+        data.height*3/4-0.5*data.margin,text=data.error,font = "Arial 12 bold",
+        fill="red")
 
 ####################################
 # use the run function as-is
