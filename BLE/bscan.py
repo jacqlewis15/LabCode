@@ -17,15 +17,33 @@ import struct
 import os
 
 #Enter the MAC address of the sensor from the lescan
-SENSOR_ADDRESS = ["80:ea:ca:10:02:dd", "81:ea:ca:20:00:b3",
-                        "82:ea:ca:30:01:ee","83:ea:ca:40:01:00"]
+SENSOR_ADDRESS = ["80:ea:ca:10:07:11", "81:ea:ca:20:06:6a",
+                        "82:ea:ca:30:0b:9c","83:ea:ca:40:06:90"]
 SENSOR_LOCATION = ["TPMS1", "TPMS2","TPMS3","TPMS4"]
 
+# set 1
+# 1 - 80:ea:ca:10:02:dd
+# 2 - 81:ea:ca:20:00:b3
+# 3 - 82:ea:ca:30:01:ee
+# 4 - 83:ea:ca:40:01:00
+
 # set 2
-# 1 - 80:EA:CA:10:01:E7
-# 2 - 81:EA:CA:20:00:B0
-# 3 - 82:EA:CA:30:00:50
-# 4 - 83:EA:CA:40:01:A6
+# 1 - 80:ea:ca:10:07:53
+# 2 - 81:ea:ca:20:05:36
+# 3 - 82:ea:ca:30:0c:f7
+# 4 - 83:ea:ca:40:0c:22
+
+# set 3
+# 1 - 80:ea:ca:10:06:1b
+# 2 - 81:ea:ca:20:06:33
+# 3 - 82:ea:ca:30:0b:ba
+# 4 - 83:ea:ca:40:08:25
+
+# set 4
+# 1 - 80:ea:ca:10:07:11
+# 2 - 81:ea:ca:20:06:6a
+# 3 - 82:ea:ca:30:0b:9c
+# 4 - 83:ea:ca:40:06:90
 
 class ScanDelegate(DefaultDelegate):
     def __init__(self):
